@@ -1,11 +1,8 @@
 #! /usr/bin/env python
-
 import os
-
 
 data = {'command': 'uebercool',
         'module': 'cloudmesh_uebercool'}
-
 
 def replace(filename, data):
     if filename is None or filename == "":
