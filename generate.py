@@ -1,10 +1,11 @@
 #! /usr/bin/env python
 import os
+from docopt import docopt
+import sys
+from cloudmesh_base.util import banner
+from cloudmesh_base.util import path_expand
 
-data = {'command': 'uebercool',
-        'module': 'cloudmesh_uebercool'}
-
-def replace(filename, data):
+def replace_dict(filename, data):
     if filename is None or filename == "":
         return
     print "Converting:", filename
@@ -15,7 +16,8 @@ def replace(filename, data):
     content = content.format(**data)
     # write content back to file
     with open(filename, 'w') as f:
-        f.write(content)
+        for line in content:
+            f.write(line)
 
 def replace_string(filename, data):
     if filename is None or filename == "":
@@ -23,40 +25,97 @@ def replace_string(filename, data):
     print "Converting:", filename
     # read content
     with open(filename, 'r') as f:
-        content = str(f.readlines())
+        content = f.readlines()
     # replace content
-    for key in data:
-        old = "{" + key +"}"
-        new = data[key]
-    content = content.replace(old, new)
     # write content back to file
     with open(filename, 'w') as f:
-        f.write(content)
+        for line in content:
+            for key in data:
+                old = "{" + key +"}"
+                new = data[key]
+                line = line.replace(old, new).rstrip()
+            f.write(line + "\n")
 
+def generate(arguments):
+    """
+    ::
 
-# BUG check if dir exists
-script = """
-    rm -rf {module}
-    cp -rf cmd3_template {module}
-    mv {module}/cmd3_template {module}/{module}
-    mv {module}/{module}/command_command.py {module}/{module}/command_{command}.py
-    mv {module}/{module}/plugins/cm_shell_command.py {module}/{module}/plugins/cm_shell_{command}.py
-    """.format(**data)
+        Usage:
+            generate COMMAND [PACKAGE] [--path=PATH] [--topic=TOPIC]
 
-for line in script.split("\n"):
-    line = line.strip()
-    print line
-    os.system(line)
+        the command will generate the package and code for a sample cmd3 module.
 
-files = """
-   {module}/setup.py
-   {module}/Makefile
-   {module}/{module}/plugins/cm_shell_{command}.py
-   {module}/{module}/command_{command}.py
-   """.format(**data)
+        Arguments:
+            PACKAGE   name of the new package. Often this will be cloudmesh_COMMAND
+                      which will be used if not specified.
+            COMMAND   the name of the command.
 
-for filename in files.split("\n"):
-    filename = filename.strip()
-    print filename
-    replace_string(filename, data)
+            PATH      path where to place the directory [default: .]
 
+            TOPIC     the topic listed in cm [default: mycommands]
+            
+        Options:
+             -v       verbose mode
+
+        """
+
+    print arguments
+    # BUG check if dir exists
+
+    command = arguments['COMMAND']
+    package = arguments['PACKAGE']
+    path = arguments['--path']
+    topic = arguments['--topic']
+
+    if topic is None:
+        topic = "mycommands"
+        
+    if path is None:
+        path = "."
+    path = path_expand(path)
+
+    if package is None:
+        package = "cloudmesh_" + command
+
+    data = {'command': command,
+            'package': package,
+            'path': path,
+            'topic': topic}
+
+    banner("Generating Cloudmesh Command")
+    print "Command:", data['command']
+    print "Package:", data['package']
+
+    banner("Setup Directory with Package and Command")
+    script = """
+        rm -rf {path}/{package}
+        cp -rf cmd3_template {path}/{package}
+        mv {path}/{package}/cmd3_template {path}/{package}/{package}
+        mv {path}/{package}/{package}/command_command.py {path}/{package}/{package}/command_{command}.py
+        mv {path}/{package}/{package}/plugins/cm_shell_command.py {path}/{package}/{package}/plugins/cm_shell_{command}.py
+        """.format(**data)
+
+    for line in script.split("\n"):
+        line = line.strip()
+        if line != "":
+            print line
+            os.system(line)
+
+    banner("replaceing comand and package name in template files")
+    files = """
+       {path}/{package}/setup.py
+       {path}/{package}/Makefile
+       {path}/{package}/{package}/plugins/cm_shell_{command}.py
+       {path}/{package}/{package}/command_{command}.py
+       """.format(**data)
+
+    for filename in files.split("\n"):
+        filename = filename.strip()
+        if filename != "":
+            replace_string(filename, data)
+
+    banner("Comand code created.")
+
+if __name__ == "__main__":
+    arguments = docopt(generate.__doc__)
+    generate(arguments)
